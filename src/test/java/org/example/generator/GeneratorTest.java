@@ -198,7 +198,7 @@ class GeneratorTest {
     void keepsTheOriginalConstructorError() {
         GenerationException error = assertThrows(GenerationException.class,
                 () -> generator.generateValueOfType(Broken.class));
-        assertTrue(error.getMessage().contains("no constructor"));
+        assertTrue(error.getMessage().contains("constructors failed"));
         assertEquals(1, error.getSuppressed().length);
         assertInstanceOf(IllegalStateException.class, error.getSuppressed()[0].getCause());
         assertEquals("unavailable", error.getSuppressed()[0].getCause().getMessage());
@@ -214,7 +214,7 @@ class GeneratorTest {
         Class<?> nestedArray = type;
         GenerationException error = assertThrows(GenerationException.class,
                 () -> generator.generateValueOfType(nestedArray));
-        assertTrue(error.getMessage().contains("maximum depth exceeded"));
+        assertTrue(error.getMessage().contains("too deep"));
     }
 
     enum Color { RED, GREEN, BLUE }

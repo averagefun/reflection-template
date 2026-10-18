@@ -31,14 +31,14 @@ public class Generator {
     @SuppressWarnings("unchecked")
     public <T> T generateValueOfType(Class<T> type) {
         if (type == null) {
-            throw new GenerationException("type must not be null");
+            throw new GenerationException("type is null");
         }
         return (T) generate(type, new ArrayList<>(), 0);
     }
 
     private Object generate(Type type, List<Class<?>> path, int depth) {
         if (depth > MAX_DEPTH) {
-            throw failure(type, "maximum depth exceeded");
+            throw failure(type, "too deep");
         }
         if (type instanceof ParameterizedType parameterized) {
             Type raw = parameterized.getRawType();
@@ -53,7 +53,7 @@ public class Generator {
             throw failure(type, "unsupported");
         }
         if (clazz == void.class || clazz == Void.class) {
-            throw failure(type, "void has no values");
+            throw failure(type, "unsupported");
         }
         if (clazz == boolean.class || clazz == Boolean.class) return random.nextBoolean();
         if (clazz == byte.class || clazz == Byte.class) return (byte) random.nextInt(256);
@@ -73,7 +73,7 @@ public class Generator {
         }
         if (clazz.isEnum()) {
             Object[] constants = clazz.getEnumConstants();
-            if (constants.length == 0) throw failure(type, "enum has no constants");
+            if (constants.length == 0) throw failure(type, "empty enum");
             return constants[random.nextInt(constants.length)];
         }
         if (clazz.isArray()) {
@@ -88,7 +88,7 @@ public class Generator {
         if (isMap(clazz)) return generateMap(String.class, String.class, path, depth);
 
         Generatable annotation = clazz.getDeclaredAnnotation(Generatable.class);
-        if (annotation == null) throw failure(type, "must declare @Generatable");
+        if (annotation == null) throw failure(type, "missing @Generatable");
         if (path.contains(clazz)) return null;
         List<Class<?>> nextPath = new ArrayList<>(path);
         nextPath.add(clazz);
@@ -96,7 +96,7 @@ public class Generator {
             return generateImplementation(clazz, annotation, nextPath, depth);
         }
         if (annotation.implementations().length != 0) {
-            throw failure(type, "only allowed interfaces and abstract classes");
+            throw failure(type, "unexpected implementations");
         }
         return generateObject(clazz, nextPath, depth);
     }
@@ -122,17 +122,17 @@ public class Generator {
     private Object generateImplementation(Class<?> type, Generatable annotation, List<Class<?>> path, int depth) {
         List<Class<?>> implementations = new ArrayList<>(Arrays.asList(annotation.implementations()));
         if (implementations.isEmpty()) {
-            throw failure(type, "@Generatable must have >=1 implementation");
+            throw failure(type, "no implementations");
         }
         for (Class<?> implementation : implementations) {
             if (!type.isAssignableFrom(implementation) || implementation.isInterface()
                     || Modifier.isAbstract(implementation.getModifiers())
                     || implementation.getDeclaredAnnotation(Generatable.class) == null) {
-                throw failure(type, "invalid implementation: " + implementation.getTypeName());
+                throw failure(type, "bad implementation: " + implementation.getTypeName());
             }
         }
         Collections.shuffle(implementations, random);
-        GenerationException error = failure(type, "nothing can be generated");
+        GenerationException error = failure(type, "implementations failed");
         for (Class<?> implementation : implementations) {
             if (path.contains(implementation)) continue;
             try {
@@ -146,15 +146,15 @@ public class Generator {
 
     private Object generateObject(Class<?> type, List<Class<?>> path, int depth) {
         if (type.isMemberClass() && !Modifier.isStatic(type.getModifiers())) {
-            throw failure(type, "non-static require an enclosing instance");
+            throw failure(type, "needs an outer object");
         }
         List<Constructor<?>> constructors = new ArrayList<>(Arrays.asList(type.getDeclaredConstructors()));
         Collections.shuffle(constructors, random);
-        GenerationException error = failure(type, "no constructor could be invoked");
+        GenerationException error = failure(type, "constructors failed");
         for (Constructor<?> constructor : constructors) {
             try {
                 if (!constructor.trySetAccessible()) {
-                    throw failure(type, "constructor is inaccessible: " + constructor);
+                    throw failure(type, "constructor blocked: " + constructor);
                 }
                 Type[] parameterTypes = constructor.getGenericParameterTypes();
                 Object[] arguments = new Object[parameterTypes.length];
@@ -165,7 +165,7 @@ public class Generator {
             } catch (InvocationTargetException cause) {
                 error.addSuppressed(new GenerationException("constructor threw: " + constructor, cause.getCause()));
             } catch (ReflectiveOperationException | RuntimeException cause) {
-                error.addSuppressed(new GenerationException("cannot invoke constructor: " + constructor, cause));
+                error.addSuppressed(new GenerationException("constructor failed: " + constructor, cause));
             }
         }
         throw error;
@@ -180,6 +180,6 @@ public class Generator {
     }
 
     private GenerationException failure(Type type, String reason) {
-        return new GenerationException("cannot generate " + type.getTypeName() + ": " + reason);
+        return new GenerationException(type.getTypeName() + ": " + reason);
     }
 }
