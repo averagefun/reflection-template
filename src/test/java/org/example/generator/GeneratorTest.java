@@ -198,6 +198,18 @@ class GeneratorTest {
         assertThrows(GenerationException.class, () -> generator.generateValueOfType(null));
     }
 
+    @Test
+    void stopsWhenArraysAreTooDeep() {
+        Class<?> type = String.class;
+        for (int i = 0; i < 18; i++) {
+            type = Array.newInstance(type, 0).getClass();
+        }
+        Class<?> nestedArray = type;
+        GenerationException error = assertThrows(GenerationException.class,
+                () -> generator.generateValueOfType(nestedArray));
+        assertTrue(error.getMessage().contains("maximum depth exceeded"));
+    }
+
     enum Color { RED, GREEN, BLUE }
     enum EmptyEnum { }
 
