@@ -134,6 +134,7 @@ public class Generator {
         Collections.shuffle(implementations, random);
         GenerationException error = failure(type, "nothing can be generated");
         for (Class<?> implementation : implementations) {
+            if (path.contains(implementation)) continue;
             try {
                 return generate(implementation, path, depth + 1);
             } catch (GenerationException cause) {

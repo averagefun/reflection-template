@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -172,6 +173,12 @@ class GeneratorTest {
         }
     }
 
+    @Test
+    void skipsRecursiveImplementationAndTriesAnother() {
+        Branch branch = new Generator(new Random(0)).generateValueOfType(Branch.class);
+        assertInstanceOf(Leaf.class, branch.child());
+    }
+
     static Stream<Class<?>> unsupportedTypes() {
         return Stream.of(void.class, Void.class, Unannotated.class, MissingImplementations.class,
                 WrongImplementation.class, AbstractImplementation.class, UnmarkedImplementation.class,
@@ -245,6 +252,17 @@ class GeneratorTest {
 
     @Generatable
     record Pair(Customer first, Customer second) { }
+
+    @Generatable(implementations = {Branch.class, Leaf.class})
+    interface Node { }
+
+    @Generatable
+    record Branch(Node child) implements Node {
+        Branch { Objects.requireNonNull(child); }
+    }
+
+    @Generatable
+    static class Leaf implements Node { }
 
     @Generatable
     static class Fallback {
